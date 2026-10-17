@@ -58,6 +58,9 @@ Keep the first implementation small: one model, one task family and four history
 - **Emi:** methodology, endpoint definitions and behavioral interpretation.
 - **Bobby_Jenkins:** validation, closest-work checks and independent metric verification.
 - **Chandni:** log processing, analysis, figures and result ledger.
+- **Temuri Aegis:** security testing, reset-leakage and branch-isolation checks, safe execution and credential handling.
+
+These are proposed work packages; each member should confirm availability and ownership. Everyone can contribute related work, model suggestions, interpretation and paper writing.
 
 ## Reproducibility and attribution
 

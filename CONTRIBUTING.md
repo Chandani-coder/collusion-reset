@@ -4,10 +4,26 @@
 
 | Work package | Owner | Review |
 | --- | --- | --- |
-| Pipeline and execution | Daud | Bobby for integrity; Emi for condition fidelity |
+| Pipeline and execution | Daud | Temuri for security/isolation; Bobby for correctness; Emi for condition fidelity |
 | Protocol and interpretation | Emi | Bobby and Daud |
 | Validation and closest work | Bobby_Jenkins | Daud and Emi |
 | Analysis and figures | Chandni | Bobby for numbers; Emi for interpretation |
+| Security and adversarial setup validation | Temuri Aegis | Daud for implementation; Bobby for independent review |
+
+Work packages are proposed until each member confirms availability. Temuri pairs with Daud on setup and with Bobby on validation; he does not replace the independent grading or statistical checks. All members may contribute research, model suggestions and the paper.
+
+## Temuri's first deliverable
+
+A reproducible security test report, not a general penetration test:
+
+- [ ] Seed historical context with synthetic markers and check that reset branches do not retain them through prompts, summaries, caches or shared files.
+- [ ] Mutate one branch's state and verify that other branches remain unchanged.
+- [ ] Check that current instructions and task inputs remain intact after reset.
+- [ ] Check logs and configuration examples for credential exposure.
+- [ ] Review any model-generated code execution boundary before enabling it.
+- [ ] Record failing tests, reproducible steps and fixes for review by Daud and Bobby.
+
+These are engineering integrity tests, not empirical evidence of collusion. Restrict testing to the team's local/sandboxed setup; do not test external provider infrastructure or use real secrets as markers.
 
 ## First milestone
 
