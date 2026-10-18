@@ -1,0 +1,17 @@
+{
+  "status": "provisional-not-approved-for-main-run",
+  "model": null,
+  "checkpoint_streak": 3,
+  "prefix_episode_cap": 10,
+  "tail_episodes": 5,
+  "conditions": ["continue", "reset_a", "reset_b", "reset_both", "reset_b_neutral_peer_replay"],
+  "exposure_control": {
+    "review_status": "pending-Emi-and-Guru",
+    "recipient": "B",
+    "mode": "matched-neutral-peer-interaction-replay",
+    "evidence_must_match": true,
+    "live_execution_allowed": false,
+    "fixture_source": null,
+    "review_reference": null
+  }
+}

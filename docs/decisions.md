@@ -4,6 +4,16 @@
 
 Planning documents and empty implementation directories only. No pipeline, empirical results, dependencies or model access are implied. No license for original team contributions has been selected yet.
 
+## Guru exposure-control addition
+
+User requested implementation of Guru's suggestion before Emi/Guru review.
+Added a provisional fifth arm, offline branching and review-gated message routing.
+No live experiment, model calls or review approval is claimed. A matched neutral
+replay changes only a designated peer-interaction segment; evidence changes fail
+closed. Remaining exposure channels prevent interpreting this as no exposure.
+The original four-arm primary comparison remains unchanged. Review checklist:
+`docs/exposure-control.md`.
+
 ## Entry template
 
 - Date:

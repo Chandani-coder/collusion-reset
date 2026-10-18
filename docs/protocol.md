@@ -8,6 +8,12 @@ Test the effect of selective versus joint history reset after sustained unsuppor
 
 Four conditions: retain both histories, reset A, reset B, reset both. Preserve current rules, rewards, model settings, future task pairs and communication limits. Independently clone mutable environment state.
 
+Added provisional extension: `reset_b_neutral_peer_replay`, compared with normal
+Reset B. It changes the newcomer B's peer-interaction content while preserving
+task evidence. This fifth condition is review-gated and cannot yet support a
+transmission claim. See [the exact boundaries and pending decisions](exposure-control.md).
+The original primary contrast stays unchanged; the exposure comparison is secondary.
+
 ## Provisional checkpoint and horizon
 
 First three consecutive episodes of unsupported mutual ACCEPT, within at most ten starting episodes. Eligibility is decided from the prefix alone, never future behavior. Run five future task pairs per branch.

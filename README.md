@@ -2,7 +2,7 @@
 
 Testing whether selective memory resets break established collusive behavior in LLM agents.
 
-**Status: research planning and repository setup.** No experiment pipeline, validated results, or findings are released here yet.
+**Status: experimental pipeline primitives and research planning.** Offline branching and review-gated exposure routing are implemented. There is no live model runner, validated empirical result or finding yet.
 
 ## Research question
 
@@ -27,6 +27,11 @@ At a predeclared checkpoint, branch the same interaction into four conditions:
 | Reset B | Retain | Reset |
 | Reset both | Reset | Reset |
 
+Guru's suggestion adds a provisional fifth arm: **Reset B + matched neutral peer
+interaction replay**. Compare it with normal Reset B. Live use is blocked pending
+Emi/Guru's review of evidence matching and remaining exposure channels. See the
+[implementation and review checklist](docs/exposure-control.md).
+
 All branches receive the same future task pairs, rules, reward definition and communication limits. A history reset must not remove current task information or leak old context through summaries, caches or shared mutable state.
 
 Primary question: how does post-checkpoint unsupported mutual approval differ between joint and selective resets? Report each single-reset comparison separately. The independent unit is the starting trajectory, not its branches, episodes or model calls.
@@ -38,17 +43,21 @@ See the [proposed protocol](docs/protocol.md) and [team workflow](CONTRIBUTING.m
 ## Repository layout
 
 ```text
-configs/         Experiment configuration files (not implemented yet)
+configs/         Provisional five-arm pilot plan
 docs/            Protocol, decisions and research notes
-src/             Pipeline implementation (not implemented yet)
-tests/           Integrity and analysis tests (not implemented yet)
+src/             In-memory branching and exposure-routing primitives
+tests/           Offline branch-isolation and exposure-routing tests
 data/            Data-handling guidance; raw runs are not committed
 results/         Guidance for validated analysis outputs
 ```
 
 ## Getting started
 
-There is no runnable experiment command or dependency installation yet. First establish model access and validate faithful checkpoint restoration, branch isolation and deterministic grading. Do not assume a free chat interface supplies automated API access.
+There is no live experiment command or provider dependency yet. Run the offline
+tests using the command in [the exposure-control guide](docs/exposure-control.md).
+First establish model access and validate faithful checkpoint restoration, branch
+isolation and deterministic grading. Do not assume a free chat interface supplies
+automated API access.
 
 Keep the first implementation small: one model, one task family and four history conditions. No dashboard or database is required for the core study. No paid inference or automatic paid fallback is authorized under the current zero-new-spend constraint.
 
