@@ -2,7 +2,7 @@
 
 Testing whether selective memory resets break established collusive behavior in LLM agents.
 
-**Status: experimental pipeline primitives and research planning.** Offline branching and review-gated exposure routing are implemented. There is no live model runner, validated empirical result or finding yet.
+**Status: offline-tested study orchestration and an unvalidated live adapter.** Synthetic runs cover checkpoint save/reload, four reset branches, matched continuations and analysis. The live adapter is connected to pinned upstream code but has not made model requests. The exposure extension remains blocked. No empirical findings are claimed.
 
 ## Research question
 
@@ -45,29 +45,34 @@ See the [proposed protocol](docs/protocol.md) and [team workflow](CONTRIBUTING.m
 ```text
 configs/         Provisional five-arm pilot plan
 docs/            Protocol, decisions and research notes
-src/             In-memory branching and exposure-routing primitives
-tests/           Offline branch-isolation and exposure-routing tests
+src/             Study runner, live adapter, grading checks and analysis
+tests/           Offline orchestration, adapter and isolation tests
 data/            Data-handling guidance; raw runs are not committed
 results/         Guidance for validated analysis outputs
 ```
 
 ## Getting started
 
-There is no live experiment command or provider dependency yet. Run the offline
-tests using the command in [the exposure-control guide](docs/exposure-control.md).
+Use the [setup and run guide](docs/setup-and-run.md) and
+[team task handoff](docs/team-handoff.md). The team will select study episodes;
+the live runner requires an explicit manifest and model.
+
+Start with the [real two-task smoke check and explicit live launcher](docs/one-episode.md).
+The upstream is a pinned Git submodule; initialize it before running the tests.
+Run the offline tests using the command in [the exposure-control guide](docs/exposure-control.md).
 First establish model access and validate faithful checkpoint restoration, branch
 isolation and deterministic grading. Do not assume a free chat interface supplies
 automated API access.
 
-Keep the first implementation small: one model, one task family and four history conditions. No dashboard or database is required for the core study. No paid inference or automatic paid fallback is authorized under the current zero-new-spend constraint.
+Keep the first implementation small: one model, SQLite data-search tasks and four history conditions. No dashboard or additional database service is required for the core study. No paid inference or automatic paid fallback is authorized under the current zero-new-spend constraint.
 
 ## Team
 
 - **Daud:** pipeline, execution and scientific integration.
 - **Emi:** methodology, endpoint definitions and behavioral interpretation.
-- **Bobby_Jenkins:** validation, closest-work checks and independent metric verification.
 - **Chandni:** log processing, analysis, figures and result ledger.
-- **Temuri Aegis:** security testing, reset-leakage and branch-isolation checks, safe execution and credential handling.
+- **Salor:** security testing, reset-leakage and branch-isolation checks, safe execution and credential handling.
+- **Guru:** exposure controls, closest-work review and episode selection with Emi.
 
 These are proposed work packages; each member should confirm availability and ownership. Everyone can contribute related work, model suggestions, interpretation and paper writing.
 
@@ -75,7 +80,11 @@ These are proposed work packages; each member should confirm availability and ow
 
 Record exact model routes, prompts, code revisions, seeds where supported, attempted-run counts, errors, usage and deviations. Keep raw outputs immutable and trace every reported number to validated analysis.
 
-This repository is an independent planned extension, not the upstream implementation. No upstream source code has been copied in this initial setup. Preserve upstream licenses and attribution when code or data is reused. Distinguish pre-sprint preparation from work performed during the sprint.
+This repository is an independent extension, not the upstream implementation.
+The original harness and tasks are referenced through the pinned
+`vendor/agent-collusion` Git submodule, retaining its MIT license and attribution.
+Our initial repository setup contained no upstream code; the task smoke adapter
+now uses that submodule. Distinguish pre-sprint preparation from sprint work.
 
 ## Safety and limitations
 

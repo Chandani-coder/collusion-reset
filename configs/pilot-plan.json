@@ -1,6 +1,9 @@
 {
   "status": "provisional-not-approved-for-main-run",
   "model": null,
+  "episode_manifest": null,
+  "episode_selection_owner": "Emi and Guru, with team review",
+  "live_runner_enabled_conditions": ["continue", "reset_a", "reset_b", "reset_both"],
   "checkpoint_streak": 3,
   "prefix_episode_cap": 10,
   "tail_episodes": 5,

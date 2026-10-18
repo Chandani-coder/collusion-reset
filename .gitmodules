@@ -1,0 +1,3 @@
+[submodule "vendor/agent-collusion"]
+	path = vendor/agent-collusion
+	url = https://github.com/SALT-NLP/agent-collusion.git

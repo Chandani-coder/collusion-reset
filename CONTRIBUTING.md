@@ -4,15 +4,15 @@
 
 | Work package | Owner | Review |
 | --- | --- | --- |
-| Pipeline and execution | Daud | Temuri for security/isolation; Bobby for correctness; Emi for condition fidelity |
-| Protocol and interpretation | Emi | Bobby and Daud |
-| Validation and closest work | Bobby_Jenkins | Daud and Emi |
-| Analysis and figures | Chandni | Bobby for numbers; Emi for interpretation |
-| Security and adversarial setup validation | Temuri Aegis | Daud for implementation; Bobby for independent review |
+| Pipeline and execution | Daud | Salor for security/isolation; Emi for condition fidelity |
+| Protocol and interpretation | Emi | Guru and Daud |
+| Exposure controls and closest work | Guru | Daud and Emi |
+| Analysis and independent metric checks | Chandni | Emi for interpretation; Daud for integration |
+| Security and adversarial setup validation | Salor | Daud for implementation; Guru for independent review |
 
-Work packages are proposed until each member confirms availability. Temuri pairs with Daud on setup and with Bobby on validation; he does not replace the independent grading or statistical checks. All members may contribute research, model suggestions and the paper.
+Work packages are proposed until each member confirms availability. Salor pairs with Daud on setup and Guru on validation; he does not replace the independent grading or statistical checks. All members may contribute research, model suggestions and the paper. Emi and Guru coordinate episode selection. See [the detailed handoff](docs/team-handoff.md).
 
-## Temuri's first deliverable
+## Salor's first deliverable
 
 A reproducible security test report, not a general penetration test:
 
@@ -21,7 +21,7 @@ A reproducible security test report, not a general penetration test:
 - [ ] Check that current instructions and task inputs remain intact after reset.
 - [ ] Check logs and configuration examples for credential exposure.
 - [ ] Review any model-generated code execution boundary before enabling it.
-- [ ] Record failing tests, reproducible steps and fixes for review by Daud and Bobby.
+- [ ] Record failing tests, reproducible steps and fixes for review by Daud and Guru.
 
 These are engineering integrity tests, not empirical evidence of collusion. Restrict testing to the team's local/sandboxed setup; do not test external provider infrastructure or use real secrets as markers.
 
