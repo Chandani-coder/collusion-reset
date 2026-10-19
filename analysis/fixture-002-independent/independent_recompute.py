@@ -450,6 +450,233 @@ def run_derived_edge_case_tests(sample: dict[str, Any], output_dir: Path) -> lis
     return cases
 
 
+
+def build_eligibility_error_usage_rows(raw_dir: Path, study: dict[str, Any],
+                                       summary: dict[str, Any],
+                                       records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Create an audit ledger for eligibility, missing slots, validation problems and telemetry availability.
+
+    This reports only fields supported by the supplied fixture. Missing error/usage telemetry is
+    marked NOT_RECORDED, never converted to zero. The table is a fixture-level audit, not a
+    substitute for a live attempt ledger.
+    """
+    error_keys = {
+        "error", "errors", "exception", "exception_type", "error_message", "failure_reason",
+        "retry_count", "retries", "failed_calls", "request_error", "provider_error",
+    }
+    usage_keys = {
+        "usage", "usage_log", "input_tokens", "prompt_tokens", "output_tokens", "completion_tokens",
+        "total_tokens", "cost", "cost_usd", "latency_ms", "runtime_ms", "duration_ms",
+    }
+    encountered: set[str] = set()
+
+    def collect_keys(value: Any) -> None:
+        if isinstance(value, dict):
+            encountered.update(str(k).lower() for k in value)
+            for child in value.values():
+                collect_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect_keys(child)
+
+    collect_keys(study)
+    collect_keys(summary)
+    for path in sorted(raw_dir.glob("*.json")):
+        try:
+            collect_keys(read_json(path))
+        except (ValueError, OSError, json.JSONDecodeError):
+            # The normal loader/audit reports malformed required inputs elsewhere.
+            continue
+
+    error_fields_present = sorted(encountered & error_keys)
+    usage_fields_present = sorted(encountered & usage_keys)
+    error_ledger_status = "PRESENT_IN_SUPPLIED_JSON" if error_fields_present else "NOT_RECORDED_IN_FIXTURE"
+    usage_status = "PRESENT_IN_SUPPLIED_JSON" if usage_fields_present else "NOT_RECORDED_IN_FIXTURE"
+
+    eligible = study.get("eligible") is True
+    run_status = study.get("status", "NOT_RECORDED")
+    prefix_cap = study.get("prefix_cap") if type(study.get("prefix_cap")) is int else "NOT_RECORDED"
+    tail_n = study.get("tail") if type(study.get("tail")) is int else 5
+    prefix_rows = [r for r in records if r.get("phase") == "prefix"]
+    observed_prefix = len(prefix_rows)
+    # When a checkpoint qualifies, the prefix ends at that observed episode. Otherwise,
+    # the configured cap is the expected prefix length and absent positions are missing.
+    expected_prefix = len(study.get("prefix", [])) if eligible else (prefix_cap if type(prefix_cap) is int else observed_prefix)
+    expected_tail_per_arm = tail_n if eligible else 0
+    expected_total = expected_prefix + expected_tail_per_arm * len(ARMS)
+    tail_rows = [r for r in records if r.get("phase") == "continuation"]
+    observed_total = len(records)
+    total_unknown = sum(r.get("unsupported_mutual_approval") is None for r in records)
+    total_invalid = sum(r.get("valid") is False for r in records)
+    all_arms_complete = eligible and all(
+        sum(r.get("phase") == "continuation" and r.get("condition") == arm for r in records) == tail_n
+        and all(r.get("unsupported_mutual_approval") is not None for r in records
+                if r.get("phase") == "continuation" and r.get("condition") == arm)
+        for arm in ARMS
+    )
+    summary_status_counts = summary.get("status_counts", {}) if isinstance(summary.get("status_counts"), dict) else {}
+    reported_attempted = summary.get("attempted", "NOT_RECORDED")
+    reported_eligible = summary.get("eligible", "NOT_RECORDED")
+    reported_failed = summary_status_counts.get("failed", "NOT_RECORDED")
+    reported_ineligible = summary_status_counts.get("ineligible", "NOT_RECORDED")
+    declared_live_calls = study.get("settings", {}).get("live_model_calls", "NOT_RECORDED")
+
+    def episode_problem_counts(group: list[dict[str, Any]]) -> dict[str, int]:
+        reasons = [str(r.get("validity_reasons", "")) for r in group]
+        return {
+            "invalid_episodes": sum(r.get("valid") is False for r in group),
+            "unknown_endpoint_episodes": sum(r.get("unsupported_mutual_approval") is None for r in group),
+            "forced_or_unknown_verdict_episodes": sum(
+                any(tag in reason for tag in ("verdict_forced_or_force_flag_unknown", "verdict_missing_or_invalid"))
+                for reason in reasons
+            ),
+            "submission_issue_episodes": sum("submission_missing_or_mismatched" in reason for reason in reasons),
+            "missing_task_artifact_episodes": sum("task_artifact_missing" in reason for reason in reasons),
+            "unknown_expected_verdict_episodes": sum("expected_verdict_unknown" in reason for reason in reasons),
+            "missing_or_empty_raw_log_episodes": sum(
+                r.get("alice_raw_log_json_chars") is None or r.get("bob_raw_log_json_chars") is None
+                for r in group
+            ),
+        }
+
+    definitions: list[tuple[str, str, list[dict[str, Any]], int, str]] = [
+        ("trajectory", "ALL", records, expected_total,
+         "Run-level totals; any remaining prefix capacity after early eligibility is not a missing episode slot."),
+        ("prefix", "prefix", prefix_rows, expected_prefix,
+         f"Prefix cap is {prefix_cap}; stopping before the cap is expected when eligibility is reached."),
+    ]
+    for arm in ARMS:
+        arm_rows = [r for r in records if r.get("phase") == "continuation" and r.get("condition") == arm]
+        definitions.append(("continuation_arm", arm, arm_rows, expected_tail_per_arm,
+                            "A complete eligible run expects the configured continuation tail for each arm."))
+
+    out: list[dict[str, Any]] = []
+    for scope, condition, group, planned, note in definitions:
+        problems = episode_problem_counts(group)
+        observed = len(group)
+        missing_slots = max(planned - observed, 0)
+        if scope == "trajectory":
+            if not eligible:
+                paired_status = "INELIGIBLE_NO_CHECKPOINT"
+            elif not all_arms_complete:
+                paired_status = "INCOMPLETE_OR_UNKNOWN_REVIEW_REQUIRED"
+            elif run_status != "complete":
+                paired_status = "RUN_NOT_COMPLETE_REVIEW_REQUIRED"
+            else:
+                paired_status = "COMPLETE_EVALUABLE_FIXTURE"
+        elif scope == "prefix":
+            paired_status = "CHECKPOINT_ELIGIBLE" if eligible and observed >= 1 else "NO_QUALIFYING_CHECKPOINT"
+        elif not eligible:
+            paired_status = "NOT_RUN_NO_ELIGIBLE_CHECKPOINT"
+        elif missing_slots > 0:
+            paired_status = "INCOMPLETE_BRANCH"
+        elif problems["unknown_endpoint_episodes"] > 0:
+            paired_status = "COMPLETE_WINDOW_WITH_UNKNOWN_ENDPOINTS"
+        else:
+            paired_status = "COMPLETE_EVALUABLE_BRANCH"
+
+        out.append({
+            "scope_level": scope,
+            "trajectory_id": study.get("trajectory_id", "NOT_RECORDED"),
+            "condition": condition,
+            "mode": study.get("mode", "NOT_RECORDED"),
+            "run_status": run_status,
+            "trajectory_eligible": canonical_bool(eligible),
+            "reported_attempted_trajectories": reported_attempted,
+            "reported_eligible_trajectories": reported_eligible,
+            "reported_failed_trajectories": reported_failed,
+            "reported_ineligible_trajectories": reported_ineligible,
+            "prefix_cap_max": prefix_cap,
+            "prefix_episodes_observed": observed_prefix,
+            "checkpoint_file_present": (raw_dir / "checkpoint.json").is_file(),
+            "planned_episode_slots_in_scope": planned,
+            "observed_episode_files_in_scope": observed,
+            "missing_episode_slots_in_scope": missing_slots,
+            **problems,
+            "structured_error_ledger_status": error_ledger_status,
+            "error_ledger_fields_found": ";".join(error_fields_present) if error_fields_present else "NOT_RECORDED",
+            "reported_failed_trajectory_count_is_not_episode_error_count": True,
+            "usage_telemetry_status": usage_status,
+            "usage_fields_found": ";".join(usage_fields_present) if usage_fields_present else "NOT_RECORDED",
+            "declared_live_model_calls": declared_live_calls,
+            "token_cost_latency_totals": "NOT_RECORDED" if not usage_fields_present else "PRESENT_BUT_NOT_AGGREGATED_BY_THIS_FIXTURE_AUDIT",
+            "paired_analysis_audit_status": paired_status,
+            "audit_exclusion_reason": (
+                "trajectory is ineligible" if not eligible else
+                "one or more branches is incomplete or has unknown endpoint slots" if not all_arms_complete else
+                "run status is not complete" if run_status != "complete" else
+                "none indicated by supplied fixture summary; n=1 remains descriptive only"
+            ),
+            "notes": note + " This is a synthetic fixture; NOT_RECORDED is not zero.",
+        })
+    return out
+
+
+def run_eligibility_error_usage_table_tests(raw_dir: Path, study: dict[str, Any],
+                                            summary: dict[str, Any],
+                                            records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Exercise table accounting with derived scenarios for ineligible and incomplete runs."""
+    cases: list[dict[str, Any]] = []
+
+    actual_rows = build_eligibility_error_usage_rows(raw_dir, study, summary, records)
+    overall = next(r for r in actual_rows if r["scope_level"] == "trajectory")
+    actual_ok = (overall["trajectory_eligible"] == "true"
+                 and overall["planned_episode_slots_in_scope"] == 23
+                 and overall["observed_episode_files_in_scope"] == 23
+                 and overall["missing_episode_slots_in_scope"] == 0
+                 and overall["paired_analysis_audit_status"] == "COMPLETE_EVALUABLE_FIXTURE")
+    cases.append({"test_case": "supplied_complete_fixture", "status": "PASS" if actual_ok else "FAIL",
+                  "expected": "eligible; 23/23 episode files; no missing slots; complete/evaluable",
+                  "observed": f"eligible={overall['trajectory_eligible']}; observed={overall['observed_episode_files_in_scope']}/{overall['planned_episode_slots_in_scope']}; missing={overall['missing_episode_slots_in_scope']}; status={overall['paired_analysis_audit_status']}",
+                  "scope": "derived table accounting check; synthetic fixture only"})
+
+    # Model a fully observed, nonqualifying attempt that reaches the configured prefix cap.
+    never_study = copy.deepcopy(study)
+    never_study["eligible"] = False
+    never_study["status"] = "ineligible"
+    never_study["prefix"] = list(never_study.get("prefix", []))
+    cap = never_study.get("prefix_cap", 10)
+    observed_prefix_records = [copy.deepcopy(r) for r in records if r.get("phase") == "prefix"]
+    if observed_prefix_records and type(cap) is int:
+        template = observed_prefix_records[-1]
+        for i in range(len(observed_prefix_records), cap):
+            clone = copy.deepcopy(template)
+            clone.update({"phase": "prefix", "condition": "prefix", "episode_index_zero_based": i,
+                          "episode_offset_one_based": "", "source_file": f"DERIVED_TEST_ONLY__prefix-{i:02d}.json"})
+            observed_prefix_records.append(clone)
+    never_study["prefix"] = [{} for _ in observed_prefix_records]
+    never_study["branches"] = {}
+    never_rows = build_eligibility_error_usage_rows(raw_dir, never_study, summary, observed_prefix_records)
+    never_overall = next(r for r in never_rows if r["scope_level"] == "trajectory")
+    never_ok = (never_overall["trajectory_eligible"] == "false"
+                and never_overall["paired_analysis_audit_status"] == "INELIGIBLE_NO_CHECKPOINT"
+                and never_overall["planned_episode_slots_in_scope"] == len(observed_prefix_records)
+                and never_overall["observed_episode_files_in_scope"] == len(observed_prefix_records)
+                and never_overall["missing_episode_slots_in_scope"] == 0)
+    cases.append({"test_case": "derived_never_qualifies_at_prefix_cap", "status": "PASS" if never_ok else "FAIL",
+                  "expected": "ineligible; no branches expected; not included in paired effects",
+                  "observed": f"eligible={never_overall['trajectory_eligible']}; status={never_overall['paired_analysis_audit_status']}; observed={never_overall['observed_episode_files_in_scope']}; missing={never_overall['missing_episode_slots_in_scope']}",
+                  "scope": "DERIVED_TEST_ONLY; no new source fixture or research observation"})
+
+    # Model an eligible run where one branch only has three of five continuation records.
+    incomplete_records = [copy.deepcopy(r) for r in records
+                          if not (r.get("phase") == "continuation" and r.get("condition") == "reset_both"
+                                  and int(r.get("episode_offset_one_based") or 0) > 3)]
+    incomplete_rows = build_eligibility_error_usage_rows(raw_dir, study, summary, incomplete_records)
+    incomplete_arm = next(r for r in incomplete_rows
+                          if r["scope_level"] == "continuation_arm" and r["condition"] == "reset_both")
+    incomplete_overall = next(r for r in incomplete_rows if r["scope_level"] == "trajectory")
+    incomplete_ok = (incomplete_arm["observed_episode_files_in_scope"] == 3
+                     and incomplete_arm["planned_episode_slots_in_scope"] == 5
+                     and incomplete_arm["missing_episode_slots_in_scope"] == 2
+                     and incomplete_arm["paired_analysis_audit_status"] == "INCOMPLETE_BRANCH"
+                     and incomplete_overall["paired_analysis_audit_status"] == "INCOMPLETE_OR_UNKNOWN_REVIEW_REQUIRED")
+    cases.append({"test_case": "derived_incomplete_branch", "status": "PASS" if incomplete_ok else "FAIL",
+                  "expected": "3/5 observed; 2 missing slots; paired trajectory flagged for review",
+                  "observed": f"observed={incomplete_arm['observed_episode_files_in_scope']}/{incomplete_arm['planned_episode_slots_in_scope']}; missing={incomplete_arm['missing_episode_slots_in_scope']}; branch_status={incomplete_arm['paired_analysis_audit_status']}; run_status={incomplete_overall['paired_analysis_audit_status']}",
+                  "scope": "DERIVED_TEST_ONLY; no new source fixture or research observation"})
+    return cases
+
 def create_reports(raw_dir: Path, reference_dir: Path, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     study_path, checkpoint_path = raw_dir / "study.json", raw_dir / "checkpoint.json"
@@ -460,6 +687,10 @@ def create_reports(raw_dir: Path, reference_dir: Path, output_dir: Path) -> None
     study, checkpoint, summary = read_json(study_path), read_json(checkpoint_path), read_json(summary_path)
     raw_records = discover_raw_episodes(raw_dir, study)
     ref_rows = read_csv(episodes_path)
+    eligibility_error_usage_rows = build_eligibility_error_usage_rows(raw_dir, study, summary, raw_records)
+    write_csv(output_dir / "eligibility_error_usage.csv", eligibility_error_usage_rows)
+    eligibility_table_tests = run_eligibility_error_usage_table_tests(raw_dir, study, summary, raw_records)
+    write_csv(output_dir / "eligibility_error_usage_tests.csv", eligibility_table_tests)
     by_phase_arm = { (r["phase"], r["condition"]): [x for x in raw_records if x["phase"] == r["phase"] and x["condition"] == r["condition"]] for r in raw_records }
 
     # Add per-row reference comparison fields and save all raw-derived records (prefix + tails).
@@ -553,7 +784,7 @@ def create_reports(raw_dir: Path, reference_dir: Path, output_dir: Path) -> None
     reference_checksums = {p.name: sha256_file(p) for p in sorted(reference_dir.iterdir()) if p.is_file()}
     input_manifest = {
         "analysis_type": "independent_raw_fixture_recomputation_not_empirical",
-        "script_version": "1.0.0",
+        "script_version": "1.1.0",
         "raw_input_dir": str(raw_dir.resolve()),
         "reference_input_dir": str(reference_dir.resolve()),
         "raw_json_episode_records": len(raw_records),
@@ -613,6 +844,12 @@ For each continuation arm, all **5/5** episodes are valid and evaluable; unsuppo
 
 There is **no numerical discrepancy** between the independent raw-derived episode labels and the available `episodes.csv` rows in this synthetic fixture. The summary's first recurrence and reset-versus-continue means also reproduce. `summary.json` does not contain the proposed primary contrast `Reset Both − mean(Reset A, Reset B)`, nor separate `Reset Both − Reset A` and `Reset Both − Reset B` summaries. The research doc states that contrast still requires a protocol decision, so this is a missing planned output, not a claim that the current export is numerically wrong.
 
+## Eligibility, errors and usage audit
+
+See `eligibility_error_usage.csv` for the run-level, prefix and per-arm ledger. The supplied fixture contains one completed, eligible synthetic trajectory, three observed prefix episodes, and five observed continuation files per arm (23 raw episode files total; no missing slots within the observed fixture design). The derived table tests in `eligibility_error_usage_tests.csv` also check how the ledger flags a nonqualifying attempt and a branch with only 3/5 episodes. Those two cases are derived test scenarios, not source observations.
+
+The supplied JSON contains no structured per-call error/retry ledger and no token, cost or latency telemetry fields. The study manifest declares `live_model_calls=0`; telemetry totals are therefore marked `NOT_RECORDED`, not represented as measured zeros. The summary reports zero failed and zero ineligible trajectories for this one fixture, but that is not evidence that an error ledger exists for live runs.
+
 ## Missing fields / ambiguities to resolve
 
 See `missing_fields.csv` for the full table. Highest priority:
@@ -643,7 +880,7 @@ python independent_recompute.py \\
   --output-dir /path/to/independent-analysis
 ```
 
-The script uses only the Python standard library. It produces `episode_comparison.csv`, `reference_episode_comparison.csv`, `trajectory_summary.csv`, `condition_contrasts.csv`, `summary_comparison.csv`, `discrepancies.csv`, `missing_fields.csv`, `edge_case_tests.csv`, clearly labelled derived edge-case copies, and `input_manifest.json`.
+The script uses only the Python standard library. It produces `episode_comparison.csv`, `reference_episode_comparison.csv`, `trajectory_summary.csv`, `condition_contrasts.csv`, `summary_comparison.csv`, `discrepancies.csv`, `missing_fields.csv`, `edge_case_tests.csv`, `eligibility_error_usage.csv`, `eligibility_error_usage_tests.csv`, clearly labelled derived edge-case copies, and `input_manifest.json`.
 '''
     (output_dir / "discrepancy_report.md").write_text(report, encoding="utf-8")
     figure_spec = '''# Proposed Figure Specification — Main Outcome
@@ -669,6 +906,7 @@ The script uses only the Python standard library. It produces `episode_compariso
         "matched_task_sequences_across_arms": seqs_match,
         "unique_task_ids_in_prefix_plus_common_schedule": no_reused_task_id,
         "derived_edge_case_tests_all_pass": edge_pass_n == len(edge_cases),
+        "eligibility_error_usage_table_tests_all_pass": bool(eligibility_table_tests) and all(r.get("status") == "PASS" for r in eligibility_table_tests),
         "reviewed_code_provenance_confirmed": source_sha == reviewed_commit and code_dirty is False,
     }
     (output_dir / "checklist.json").write_text(json.dumps(checks, indent=2), encoding="utf-8")

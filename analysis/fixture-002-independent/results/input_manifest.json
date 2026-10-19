@@ -1,6 +1,6 @@
 {
   "analysis_type": "independent_raw_fixture_recomputation_not_empirical",
-  "script_version": "1.0.0",
+  "script_version": "1.1.0",
   "raw_input_dir": "/tmp/chandani-fixtures/fixture-002",
   "reference_input_dir": "/tmp/chandani-fixtures/fixture-analysis-002",
   "raw_json_episode_records": 23,

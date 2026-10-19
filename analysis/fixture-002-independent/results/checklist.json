@@ -6,5 +6,6 @@
   "matched_task_sequences_across_arms": true,
   "unique_task_ids_in_prefix_plus_common_schedule": true,
   "derived_edge_case_tests_all_pass": true,
+  "eligibility_error_usage_table_tests_all_pass": true,
   "reviewed_code_provenance_confirmed": false
 }

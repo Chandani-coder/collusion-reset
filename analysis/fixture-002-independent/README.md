@@ -40,10 +40,14 @@ The script does **not** import the pipeline metric or summary functions. It read
 - `summary_comparison.csv`: field-by-field check of `summary.json` and study manifest summaries.
 - `discrepancies.csv`: unresolved provenance and non-exported-contrast issues; a missing export is not automatically a numerical defect.
 - `missing_fields.csv`: schema gaps, their impact and recommendations.
+- `eligibility_error_usage.csv`: run/prefix/arm counts for eligibility, expected versus observed episode slots, invalid/unknown outputs, validation problems, and explicit availability status for error and usage telemetry.
+- `eligibility_error_usage_tests.csv`: derived logic checks for the supplied complete fixture, a nonqualifying attempt, and an incomplete branch. Derived cases are test scenarios, not observed runs.
 - `edge_case_tests.csv` and `derived_edge_case_fixtures/`: explicitly labelled derived copies testing missing verdicts, forced verdicts, mismatched submissions, and short/missing partner logs. Originals remain unchanged.
 - `figure_specification.md`: proposed main-figure design for actual multi-trajectory data.
 - `input_manifest.json` and `checklist.json`: input file hashes and high-level checks.
 - `discrepancy_report.md`: concise review report.
+
+The eligibility/error/usage ledger distinguishes actual recorded counts from absent telemetry. In particular, `NOT_RECORDED` means the fixture does not contain the field; it must not be interpreted as zero errors, zero tokens, or zero cost.
 
 ## Key limitations
 

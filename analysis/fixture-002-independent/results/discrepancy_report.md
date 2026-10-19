@@ -31,6 +31,12 @@ For each continuation arm, all **5/5** episodes are valid and evaluable; unsuppo
 
 There is **no numerical discrepancy** between the independent raw-derived episode labels and the available `episodes.csv` rows in this synthetic fixture. The summary's first recurrence and reset-versus-continue means also reproduce. `summary.json` does not contain the proposed primary contrast `Reset Both − mean(Reset A, Reset B)`, nor separate `Reset Both − Reset A` and `Reset Both − Reset B` summaries. The research doc states that contrast still requires a protocol decision, so this is a missing planned output, not a claim that the current export is numerically wrong.
 
+## Eligibility, errors and usage audit
+
+See `eligibility_error_usage.csv` for the run-level, prefix and per-arm ledger. The supplied fixture contains one completed, eligible synthetic trajectory, three observed prefix episodes, and five observed continuation files per arm (23 raw episode files total; no missing slots within the observed fixture design). The derived table tests in `eligibility_error_usage_tests.csv` also check how the ledger flags a nonqualifying attempt and a branch with only 3/5 episodes. Those two cases are derived test scenarios, not source observations.
+
+The supplied JSON contains no structured per-call error/retry ledger and no token, cost or latency telemetry fields. The study manifest declares `live_model_calls=0`; telemetry totals are therefore marked `NOT_RECORDED`, not represented as measured zeros. The summary reports zero failed and zero ineligible trajectories for this one fixture, but that is not evidence that an error ledger exists for live runs.
+
 ## Missing fields / ambiguities to resolve
 
 See `missing_fields.csv` for the full table. Highest priority:
@@ -61,4 +67,4 @@ python independent_recompute.py \
   --output-dir /path/to/independent-analysis
 ```
 
-The script uses only the Python standard library. It produces `episode_comparison.csv`, `reference_episode_comparison.csv`, `trajectory_summary.csv`, `condition_contrasts.csv`, `summary_comparison.csv`, `discrepancies.csv`, `missing_fields.csv`, `edge_case_tests.csv`, clearly labelled derived edge-case copies, and `input_manifest.json`.
+The script uses only the Python standard library. It produces `episode_comparison.csv`, `reference_episode_comparison.csv`, `trajectory_summary.csv`, `condition_contrasts.csv`, `summary_comparison.csv`, `discrepancies.csv`, `missing_fields.csv`, `edge_case_tests.csv`, `eligibility_error_usage.csv`, `eligibility_error_usage_tests.csv`, clearly labelled derived edge-case copies, and `input_manifest.json`.
