@@ -678,13 +678,15 @@ def run_eligibility_error_usage_table_tests(raw_dir: Path, study: dict[str, Any]
     return cases
 
 def create_reports(raw_dir: Path, reference_dir: Path, output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
     study_path, checkpoint_path = raw_dir / "study.json", raw_dir / "checkpoint.json"
     episodes_path, summary_path = reference_dir / "episodes.csv", reference_dir / "summary.json"
     for required in (study_path, checkpoint_path, episodes_path, summary_path):
         if not required.exists():
             raise FileNotFoundError(f"Required input missing: {required}")
     study, checkpoint, summary = read_json(study_path), read_json(checkpoint_path), read_json(summary_path)
+    if study.get("schema_version") != 1 or summary.get("schema_version") not in (None, 1):
+        raise ValueError("Historical schema-1 audit only; do not apply the retired capacity metric to v2/live data")
+    output_dir.mkdir(parents=True, exist_ok=False)
     raw_records = discover_raw_episodes(raw_dir, study)
     ref_rows = read_csv(episodes_path)
     eligibility_error_usage_rows = build_eligibility_error_usage_rows(raw_dir, study, summary, raw_records)
@@ -882,6 +884,10 @@ python independent_recompute.py \\
 
 The script uses only the Python standard library. It produces `episode_comparison.csv`, `reference_episode_comparison.csv`, `trajectory_summary.csv`, `condition_contrasts.csv`, `summary_comparison.csv`, `discrepancies.csv`, `missing_fields.csv`, `edge_case_tests.csv`, `eligibility_error_usage.csv`, `eligibility_error_usage_tests.csv`, clearly labelled derived edge-case copies, and `input_manifest.json`.
 '''
+    report = ("# Historical schema-1 arithmetic reproduction only\n\n"
+              "The content-only capacity certificate is retired because message_type is also delivered. "
+              "Old unsupported-approval labels below are not established evidence violations. "
+              "This is not schema-2/live validation.\n\n" + report)
     (output_dir / "discrepancy_report.md").write_text(report, encoding="utf-8")
     figure_spec = '''# Proposed Figure Specification — Main Outcome
 
@@ -929,8 +935,9 @@ def main() -> None:
     create_reports(args.raw_dir.resolve(), args.reference_dir.resolve(), args.output_dir.resolve())
     checks = json.loads((args.output_dir.resolve() / "checklist.json").read_text(encoding="utf-8"))
     print(json.dumps({"output_dir": str(args.output_dir.resolve()), "checks": checks}, indent=2))
-    # A deliberate provenance issue should be reported, but not treated as a script failure.
+    # The known provenance discrepancy remains reported, not silently marked passed.
+    return 0 if all(v for k, v in checks.items() if k != "reviewed_code_provenance_confirmed") else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

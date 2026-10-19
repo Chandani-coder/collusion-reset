@@ -1,5 +1,12 @@
 # Chandani's Independent Fixture Analysis
 
+**Historical schema-1 audit only.** The old capacity-based endpoint is retired:
+`message_type` is also delivered without the content cap, so content length alone
+cannot prove nondelivery or unsupported approval. This checker reproduces legacy
+arithmetic, not evidence-compliance ground truth, and rejects schema-2 inputs.
+Retained reports below are historical; do not use them as v2/live sign-off.
+Use a new, nonexistent output directory for each reproduction.
+
 **Purpose:** Independently recalculate metrics from the supplied synthetic `fixture-002` raw records and compare against `fixture-analysis-002`. This is a synthetic plumbing check, not empirical research.
 
 ## Inputs
@@ -17,7 +24,7 @@ Requires Python 3.10+ and only the standard library. From this folder:
 python independent_recompute.py \
   --raw-dir /path/to/fixture-002 \
   --reference-dir /path/to/fixture-analysis-002 \
-  --output-dir ./results
+  --output-dir ./results-reproduced
 ```
 
 Example if both directories were extracted next to the script:
@@ -26,7 +33,7 @@ Example if both directories were extracted next to the script:
 python independent_recompute.py \
   --raw-dir ./fixture-002 \
   --reference-dir ./fixture-analysis-002 \
-  --output-dir ./results
+  --output-dir ./results-reproduced
 ```
 
 The script does **not** import the pipeline metric or summary functions. It reads raw episode JSON, independently derives verdict validity, the conservative raw-log capacity endpoint and task-correct flags, then compares these values against both `episodes.csv` and the stored per-episode metrics in `study.json`.
@@ -54,7 +61,7 @@ The eligibility/error/usage ledger distinguishes actual recorded counts from abs
 1. All supplied endpoints are scripted as unsupported mutual approval. Identical 1.00 rates across arms do not demonstrate an intervention effect.
 2. There is only one starting trajectory, so population uncertainty is not estimable.
 3. `expected_verdict == "pass"` reproduces the fixture's task-correct flag, but the fixture uses placeholder task IDs and `answer: []`; actual correctness cannot be independently verified against the upstream grader using these files alone.
-4. The capacity rule proves a full raw log could not fit verbatim within `max_rounds × char_limit`; it does not expose the actual message payload delivered to the reviewer.
+4. The old capacity rule compares only bounded content, omitting the unrestricted `message_type` channel. It does not prove that the full log was unavailable or that approval was unsupported.
 5. `study.json` records the parent of review commit `2c0d060` and `code_dirty: true`. Obtain the dirty diff/snapshot or regenerate fixtures on a clean reviewed commit before claiming exact source reproducibility.
 
 ## Status
